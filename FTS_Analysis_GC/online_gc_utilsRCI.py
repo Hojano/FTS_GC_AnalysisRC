@@ -5,7 +5,7 @@ from scipy import integrate
 import os
 from typing import Literal
 
-
+experiment_path=None
 def collect_chromatogram_files(experiment_path):
     """
     Collects file lists for FID, TCD_AuxLeft, and TCD_AuxRight chromatograms and loads the first file from each list.
@@ -31,7 +31,8 @@ def collect_chromatogram_files(experiment_path):
     AuxLeft_0 = pd.read_csv(AuxLeftList[0], names=['Time', 'Step', 'Value'], sep='\t', skiprows=43) if AuxLeftList else None
     AuxRight_0 = pd.read_csv(AuxRightList[0], names=['Time', 'Step', 'Value'], sep='\t', skiprows=43) if AuxRightList else None
     return FIDList, AuxLeftList, AuxRightList, FID_0, AuxLeft_0, AuxRight_0
-FIDlist=[]
+
+FIDList=[]
 def chromatogram(file_list, file_type:str=Literal['FID', 'AuxLeft', 'AuxRight'], fid_reference_list=FIDList, output_path=experiment_path, output_name:str=Literal['FID_total1.csv', 'AuxLeft_total1.csv', 'AuxRight_total1.csv']):
     """
     Processes a group of chromatogram files (e.g., FID, AuxLeft, AuxRight), aligns them by minutes from FID start time,
@@ -93,6 +94,14 @@ def chromatogram(file_list, file_type:str=Literal['FID', 'AuxLeft', 'AuxRight'],
 
     return df_combined
 
+def baseline_correct_column(col, time_index, start, end):
+    # Select the baseline window values for this column based on the provided time index.
+    baseline_values = col[ (time_index >= start) & (time_index <= end) ]
+    # Compute the mean over the baseline period.
+    baseline = baseline_values.mean()
+    # Return the column with the baseline subtracted.
+    return col - baseline 
+
 def integrate_named_peaks(DF, named_peak_windows):
     """
     Integrate multiple named peaks from a chromatogram DataFrame.
@@ -139,6 +148,11 @@ def integrate_named_peaks(DF, named_peak_windows):
             peak_areas.append(area)
 
         result[name] = pd.Series(peak_areas, index=time_points)
+
+    # Combine all peak area series into a DataFrame
+    result_df = pd.DataFrame(result)
+    result_df.index.name = "Time_Point"
+    return result_df
 
 def integrate_peak1(DF,StartTime,EndTime):
     minutes = DF.index
