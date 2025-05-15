@@ -2,6 +2,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import datetime
 from scipy import integrate
+import os
+import pandas as pd
 
 def collect_chromatogram_files(experiment_path):
     """
@@ -11,8 +13,7 @@ def collect_chromatogram_files(experiment_path):
     Returns:
         tuple: (FIDList, AuxLeftList, AuxRightList, FID_0, AuxLeft_0, AuxRight_0)
     """
-    import os
-    import pandas as pd
+    # Collect chromatogram files
     DataDict = os.path.join(experiment_path, 'chromatograms')
     FIDList = []
     AuxRightList = []
