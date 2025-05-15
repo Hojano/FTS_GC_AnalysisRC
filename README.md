@@ -27,8 +27,8 @@ import your_package as ir
 My_Scripts
 │
 └───DRIFTS
-│   │   myDRIFTS_analysis.py
-│   │   myDRIFTS_notebook.ipynb
+│   │   FTS.py
+│   │   FTS.ipynb
 │   │
 │   └───*your_package*
 ```
