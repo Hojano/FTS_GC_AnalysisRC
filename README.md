@@ -1,11 +1,11 @@
 # CO/CO2 hydrogenation (Fischer-Tropsch) analysis )
 ## Description
-This repository contains my your_package. Among others, the package can be used to import .dx files, logfiles and GC data from various IR setups.
+This repository contains my FTS_GC analysis package. Among others, the package can be used to import .dx files, logfiles and GC data from various IR setups.
 
 ## Installation 
 - clone the repository:
 ```
-git clone robins_package_link
+git clone https://github.com/RobinICC/FTS_GC_AnalysisRC
 ```
 - install the package by **navigating to the cloned repository** in your python environment and executing the following command:
 
@@ -16,40 +16,25 @@ pip install -e .
 - You should now be able to load the package in python by using:
 
 ```python
-import your_package as ir
+import FTS_GC_AnalysisRC as fts
 ```
 
 ## Installation (simplest version)
 - Download the repository. 
-- Copy the *your_package* folder to the folder where the script you wanna use for analysis is located. Example:
+- Copy the *FTS_GC_AnalysisRC* folder to the folder where the script you wanna use for analysis is located. Example:
 
 ```
 My_Scripts
 │
 └───DRIFTS
-│   │   FTS.py
-│   │   FTS.ipynb
+│   │   your_chromatogram_script.py
+│   │   your_chromatogram_script.ipynb
 │   │
-│   └───*your_package*
+│   └───*FTS_GC_AnalysisRC*
 ```
 
 ## Usage
-Parse DRIFTS files from a folder using:
-```python
-DRIFTS_spectra = ir.parse_spectra('*path-to-your-file*')
-```
-Make a quick plot to check: 
-
-```python
-ir.quick_plot(DRIFTS_spectra)
-```
-Combine with logfile:
-
-```python
-merged_data = ir.merge_spectra_logfile('*path to spectra*', '*path to logfile*')
-```
-
-Check the example notebook for more info how to use this package.
+... will be added soon.
 
 ## Support
 If you find bugs or have other questions send me a message or open an issue.
@@ -61,4 +46,4 @@ If you want to contribute, let me know.
 Robin Conradi, Utrecht University
 
 ## Acknowledgements
-Package structure was adapted from pyTGA, built by Sebastian Rejman
+... added soon.
