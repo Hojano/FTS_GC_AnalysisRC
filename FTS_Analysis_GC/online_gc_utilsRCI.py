@@ -106,9 +106,8 @@ def chromatogram(filename, file_type, FIDList):
     parts = TimeRaw_.split('_')
     if len(parts) < 3:
         raise ValueError("Filename format not recognized for timestamp extraction.")
-    # Expect the timestamp to be the second and third parts.
-    TimeRaw = parts[1] + '_' + parts[2]
-    # Convert the timestamp string to a datetime object.
+    TimeRaw = parts[1] + '_' + parts[2]  # Expect the timestamp to be the second and third parts.
+
     DateTime = pd.to_datetime(TimeRaw, format='%d-%b-%Y %H_%M')
     DateTimeFromStart = DateTime - DateTime_Start
     MinutesFromStart = round(DateTimeFromStart.total_seconds() / 60)
