@@ -3,6 +3,33 @@ import matplotlib.pyplot as plt
 import datetime
 from scipy import integrate
 
+def collect_chromatogram_files(experiment_path):
+    """
+    Collects file lists for FID, TCD_AuxLeft, and TCD_AuxRight chromatograms and loads the first file from each list.
+    Args:
+        experiment_path (str): Path to the experiment directory.
+    Returns:
+        tuple: (FIDList, AuxLeftList, AuxRightList, FID_0, AuxLeft_0, AuxRight_0)
+    """
+    import os
+    import pandas as pd
+    DataDict = os.path.join(experiment_path, 'chromatograms')
+    FIDList = []
+    AuxRightList = []
+    AuxLeftList = []
+    for root, dirs, files in os.walk(DataDict, topdown=True):
+        for name in files:
+            if 'FID_' in name:
+                FIDList.append(os.path.join(root, name))
+            if 'TCD_AuxLeft' in name:
+                AuxLeftList.append(os.path.join(root, name))
+            if 'TCD_AuxRight' in name:
+                AuxRightList.append(os.path.join(root, name))
+    FID_0 = pd.read_csv(FIDList[0], names=['Time', 'Step', 'Value'], sep='\t', skiprows=43) if FIDList else None
+    AuxLeft_0 = pd.read_csv(AuxLeftList[0], names=['Time', 'Step', 'Value'], sep='\t', skiprows=43) if AuxLeftList else None
+    AuxRight_0 = pd.read_csv(AuxRightList[0], names=['Time', 'Step', 'Value'], sep='\t', skiprows=43) if AuxRightList else None
+    return FIDList, AuxLeftList, AuxRightList, FID_0, AuxLeft_0, AuxRight_0
+
 def integrate_named_peaks(DF, named_peak_windows):
     """
     Integrate multiple named peaks from a chromatogram DataFrame.
