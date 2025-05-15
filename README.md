@@ -1,4 +1,4 @@
-# DRIFTS-analysis
+# CO/CO2 hydrogenation (Fischer-Tropsch) analysis )
 ## Description
 This repository contains my your_package. Among others, the package can be used to import .dx files, logfiles and GC data from various IR setups.
 
