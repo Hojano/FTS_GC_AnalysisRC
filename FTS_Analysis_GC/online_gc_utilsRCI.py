@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import datetime
 from scipy import integrate
 import os
+from typing import Literal
 
 
 def collect_chromatogram_files(experiment_path):
