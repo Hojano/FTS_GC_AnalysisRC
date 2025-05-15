@@ -57,7 +57,6 @@ def integrate_peak1(DF,StartTime,EndTime):
     DF = DF.iloc[StartIndex:EndIndex]
     x = []
     y = []
-    MethaneAreaFig,  MethaneAreaFigAx = plt.subplots(figsize=(6,6))
     for column in DF.columns:
         x.append(float(column))
         Orginal_Chromatogram = DF[column]
@@ -72,7 +71,6 @@ def integrate_peak1(DF,StartTime,EndTime):
         Subtracted_Chromatogram = Orginal_Chromatogram - SlopeLine
         MethaneIntegration = integrate.trapezoid(y=Subtracted_Chromatogram,x=x_values)
         y.append(MethaneIntegration)
-    MethaneAreaFig.legend()
     return pd.Series(data=y,index=x)
     # Combine all peak area series into a DataFrame
     result_df = pd.DataFrame(result)
