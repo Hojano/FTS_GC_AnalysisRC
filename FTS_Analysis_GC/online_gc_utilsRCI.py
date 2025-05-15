@@ -72,10 +72,7 @@ def integrate_peak1(DF,StartTime,EndTime):
         MethaneIntegration = integrate.trapezoid(y=Subtracted_Chromatogram,x=x_values)
         y.append(MethaneIntegration)
     return pd.Series(data=y,index=x)
-    # Combine all peak area series into a DataFrame
-    result_df = pd.DataFrame(result)
-    result_df.index.name = "Time_Point"
-    return result_df
+
 
 def chromatogram(filename, file_type, FIDList):
     # Compute the reference start time from FIDList.
