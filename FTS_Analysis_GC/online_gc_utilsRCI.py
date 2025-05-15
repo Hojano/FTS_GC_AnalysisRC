@@ -31,7 +31,7 @@ def collect_chromatogram_files(experiment_path):
     AuxLeft_0 = pd.read_csv(AuxLeftList[0], names=['Time', 'Step', 'Value'], sep='\t', skiprows=43) if AuxLeftList else None
     AuxRight_0 = pd.read_csv(AuxRightList[0], names=['Time', 'Step', 'Value'], sep='\t', skiprows=43) if AuxRightList else None
     return FIDList, AuxLeftList, AuxRightList, FID_0, AuxLeft_0, AuxRight_0
-
+FIDlist=[]
 def chromatogram(file_list, file_type:str=Literal['FID', 'AuxLeft', 'AuxRight'], fid_reference_list=FIDList, output_path=experiment_path, output_name:str=Literal['FID_total1.csv', 'AuxLeft_total1.csv', 'AuxRight_total1.csv']):
     """
     Processes a group of chromatogram files (e.g., FID, AuxLeft, AuxRight), aligns them by minutes from FID start time,
