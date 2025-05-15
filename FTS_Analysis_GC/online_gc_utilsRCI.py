@@ -178,29 +178,12 @@ def get_peaknames(Peaks_channel1,Peaks_channel2,Peaks_TCD):
     return Peaknames
 
 
-def get_chrom_paths(data_dir,chromatogram_list):
-    Paths = []
-    for i in range(0,(len(chromatogram_list))):
-        Paths.append(data_dir+'/chromatograms/' + chromatogram_list[i])
-    return Paths
 
-def process_chromatograms(Paths,Peaknames,Peaks_channel2,Peaks_TCD,Peaks_channel1):
-    Integral_Frame = pd.DataFrame(columns=Peaknames)
 
-    for i in range(0,len(Paths)):
-        df_chromatogram, df_chromatogram_meta = read_chromatogram(Paths[i])
-        df_chromatogram = baseline_correct(df_chromatogram)
-        result_frame = integrate_peaks(df_chromatogram, Peaks_channel2,Peaks_TCD,Peaks_channel1)
-        result_frame.append(pd.to_datetime(df_chromatogram_meta.iloc[6][0].split(',')[1]))
-        Integral_Frame.loc[i] = result_frame
-    return Integral_Frame
+
 
 
  
-def get_temp_and_valves(Integral_Frame,Log):
-    Integral_Frame['Temperature'] = Integral_Frame['Timestamp'].apply(lambda x: Log['Oven Temperature'][Log['timestamp'].sub(x).abs().idxmin()])
-    Integral_Frame['v10-bubbler'] = Integral_Frame['Timestamp'].apply(lambda x: Log['v10-bubbler'][Log['timestamp'].sub(x).abs().idxmin()])
-    Integral_Frame['v11-reactor'] = Integral_Frame['Timestamp'].apply(lambda x: Log['v11-reactor'][Log['timestamp'].sub(x).abs().idxmin()])
-    return Integral_Frame
+
 
 
