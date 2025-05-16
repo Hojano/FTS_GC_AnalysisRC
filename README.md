@@ -1,6 +1,6 @@
-# CO/CO2 hydrogenation (Fischer-Tropsch) analysis )
+# CO/CO2 hydrogenation (Fischer-Tropsch) analysis - Under active development
 ## Description
-This repository contains my FTS_GC analysis package. Among others, the package can be used to import .dx files, logfiles and GC data from various IR setups.
+This repository contains my FTS_GC analysis package. Among others, the package can be used to import .txt files containing the raw chromatogram data 
 
 ## Installation 
 - clone the repository:
@@ -26,7 +26,7 @@ import FTS_GC_AnalysisRC as fts
 ```
 My_Scripts
 │
-└───DRIFTS
+└───FTS
 │   │   your_chromatogram_script.py
 │   │   your_chromatogram_script.ipynb
 │   │
