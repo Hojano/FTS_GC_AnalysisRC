@@ -151,4 +151,3 @@ def integrate_named_peaks(DF, named_peak_windows):
     result_df = pd.DataFrame(result)
     result_df.index.name = "Time_Point"
     return result_df
-
