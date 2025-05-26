@@ -32,7 +32,7 @@ def collect_chromatogram_files(experiment_path):
 
 FIDList=[]
 
-def chromatogramNOT(file_list, file_type:str=Literal['FID', 'AuxLeft', 'AuxRight'], fid_reference_list=FIDList, output_path=experiment_path, output_name:str=Literal['FID_total1.csv', 'AuxLeft_total1.csv', 'AuxRight_total1.csv']):    
+def chromatogram(file_list, file_type:str=Literal['FID', 'AuxLeft', 'AuxRight'], fid_reference_list=FIDList, output_path=experiment_path, output_name:str=Literal['FID_total1.csv', 'AuxLeft_total1.csv', 'AuxRight_total1.csv']):    
     """
     Processes chromatogram files, aligns them by minutes from FID start time,
     and optionally saves to CSV unless the output already exists.
