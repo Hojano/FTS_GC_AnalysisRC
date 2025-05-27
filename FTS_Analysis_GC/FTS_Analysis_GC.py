@@ -2,6 +2,7 @@ import pandas as pd
 from scipy import integrate
 import os
 from typing import Literal
+import matplotlib.pyplot as plt
 
 experiment_path=None
 def collect_chromatogram_files(experiment_path):
@@ -30,8 +31,99 @@ def collect_chromatogram_files(experiment_path):
     AuxRight_0 = pd.read_csv(AuxRightList[0], names=['Time', 'Step', 'Value'], sep='\t', skiprows=43) if AuxRightList else None
     return FIDList, AuxLeftList, AuxRightList, FID_0, AuxLeft_0, AuxRight_0
 
-FIDList=[]
+def read_logfile(experiment_path, gases_to_plot=None):
+    """
+    Reads reactor logfile(s) from experiment_path, filters for on-stream (Valve 9 = 1),
+    plots pressure/temp and gas flows over time, and returns the processed logfile DataFrame.
 
+    Parameters:
+        experiment_path (str): Path to the experiment folder containing logfiles.
+        gases_to_plot (list of str): List of gases to plot (e.g. ['CO', 'H2', 'Ar']). Default: all common gases.
+
+    Returns:
+        pd.DataFrame: Processed logfile dataframe with DateTime index and filtered for Valve 9 = 1.
+    """
+    # Step 1: Collect .txt logfiles
+    logfile_files = sorted([file for file in os.listdir(experiment_path) if file.endswith('.txt')])
+    print(logfile_files)
+    if len(logfile_files) == 0:
+        raise ValueError('No logfile found in the specified path.')
+
+    # Step 2: Read header from first logfile
+    df1 = pd.read_csv(os.path.join(experiment_path, logfile_files[0]), header=None, sep='\t', skiprows=1, nrows=1)
+    header_row = df1.iloc[0].tolist()
+
+    # Step 3: Read and combine logfiles
+    if len(logfile_files) > 1:
+        print('Multiple logfiles found! Combining them...')
+        logfile = pd.concat([
+            pd.read_csv(os.path.join(experiment_path, i), sep='\t', skiprows=2, names=header_row)
+            for i in logfile_files
+        ])
+    else:
+        logfile = pd.read_csv(os.path.join(experiment_path, logfile_files[0]), sep='\t', skiprows=2, names=header_row)
+
+    # Step 4: Parse datetime and filter for Valve 9 ON (reactor line)
+    logfile.index = pd.to_datetime(logfile['Date/Time'], format='%d-%b-%Y %H:%M:%S', errors='coerce')
+    logfile = logfile.drop(columns='Date/Time')
+    logfile = logfile[logfile['Valve 9'] == 1]
+
+    # Step 5: Select relevant columns
+    mfc_columns = [col for col in logfile.columns if 'MFC' in col and 'pv' in col]
+    static_columns = ['Valve 9', 'Oven PV', 'Pressure R1', 'Pressure R2', 'BPC A-SP', 'MFM']
+    selected_columns = static_columns + mfc_columns
+    logfile = logfile[selected_columns]
+
+    # Step 6: Calculate total flow
+    logfile['Total Flow'] = logfile[mfc_columns].sum(axis=1)
+
+    # Step 7: Define which gas flows to plot
+    gas_map = {
+        'CO': 'MFC CO pv',
+        'H2': 'MFC H2 pv',
+        'Ar': 'MFC Ar pv',
+        'N2': 'MFC N2 pv',
+        'CO2': 'MFC CO2 pv',
+        'O2': 'MFC O2 pv',
+        'He': 'MFC He pv'
+    }
+    if gases_to_plot is None:
+        gases_to_plot = list(gas_map.keys())
+
+    gas_columns = [gas_map[gas] for gas in gases_to_plot if gas_map[gas] in logfile.columns]
+
+    # Step 8: Plotting
+    fig, (ax1, ax3) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+
+    # Plot Pressure and Oven Temp
+    ax1.plot(logfile.index, logfile['Pressure R1'], color='tab:blue', label='Pressure (barg)')
+    ax1.set_ylabel('Pressure (barg)', color='tab:blue')
+    ax1.tick_params(axis='y', labelcolor='tab:blue')
+
+    ax2 = ax1.twinx()
+    ax2.plot(logfile.index, logfile['Oven PV'], color='tab:red', label='Oven Temp (°C)')
+    ax2.set_ylabel('Oven Temp (°C)', color='tab:red')
+    ax2.tick_params(axis='y', labelcolor='tab:red')
+
+    ax1.set_title('Pressure and Oven Temperature over Time')
+
+    # Plot Gas Flows
+    for gas_col in gas_columns:
+        ax3.plot(logfile.index, logfile[gas_col], label=gas_col)
+
+    ax3.plot(logfile.index, logfile['Total Flow'], label='Total Flow', color='black')
+    ax3.set_ylabel('Gas Flow (ml/min)')
+    ax3.set_xlabel('Date/Time')
+    ax3.legend(loc='upper right')
+    ax3.set_title('Gas Flows During Reaction')
+
+    plt.tight_layout()
+    plt.show()
+
+    # Return processed logfile dataframe
+    return logfile
+
+FIDList=[]
 def chromatogram(file_list, file_type:str=Literal['FID', 'AuxLeft', 'AuxRight'], fid_reference_list=FIDList, output_path=experiment_path, output_name:str=Literal['FID_total1.csv', 'AuxLeft_total1.csv', 'AuxRight_total1.csv']):    
     """
     Processes chromatogram files, aligns them by minutes from FID start time,
@@ -98,66 +190,7 @@ def chromatogram(file_list, file_type:str=Literal['FID', 'AuxLeft', 'AuxRight'],
     print(f"[INFO] Chromatogram saved to: {output_file}")
 
     return df_combined
-def chromatogram_v1(file_list, file_type:str=Literal['FID', 'AuxLeft', 'AuxRight'], fid_reference_list=FIDList, output_path=experiment_path, output_name:str=Literal['FID_total1.csv', 'AuxLeft_total1.csv', 'AuxRight_total1.csv']):
-    """
-    Processes a group of chromatogram files (e.g., FID, AuxLeft, AuxRight), aligns them by minutes from FID start time,
-    and optionally saves to CSV.
 
-    Parameters:
-        file_list (list of str): List of chromatogram file paths to process.
-        file_type (str): The file type identifier in filenames (e.g., 'FID', 'AuxLeft').
-        fid_reference_list (list of str): List of FID filenames to establish start time.
-        output_path (str): Directory to save output CSV.
-        output_name (str): Name of the CSV file to write.
-
-    Returns:
-        pd.DataFrame: Combined chromatogram DataFrame indexed by time.
-    """
-    # Step 1: Extract datetime from each FID file to establish a reference (earliest) start time
-    start_times = []
-    for fid in fid_reference_list:
-        fid_time_str = fid.split('FID_')[-1].split('.txt')[0]
-        fid_datetime = pd.to_datetime(fid_time_str, format='%d-%b-%Y %H_%M', errors='coerce')
-        start_times.append(fid_datetime)
-    datetime_start = min(start_times) # Use earliest time as reference point
-
-
-    chromatogram_dict = {}
-    # Step 2: Process each chromatogram file in the list
-    for file_path in file_list:
-        # Read the data: skip metadata rows and load columns as Time, Step, and Value
-        df = pd.read_csv(file_path, names=['Time', 'Step', 'Value'], sep='\t', skiprows=43)
-        df = df.replace(',', '', regex=True) # Remove commas if present
-
-        filename = file_path.split('\\')[-1] # Extract file name from full path
-        if file_type not in filename:
-            raise ValueError(f"Expected '{file_type}' in filename but got: {filename}")
-
-        # Extract timestamp portion from filename
-        time_raw = filename.split('.txt')[0].split(file_type)[-1]
-        parts = time_raw.split('_')
-        if len(parts) < 3:
-            raise ValueError(f"Filename format not recognized for timestamp extraction in: {filename}")
-        time_str = parts[1] + '_' + parts[2] # Build timestamp string like '27-Feb-2025_14_30'
-        
-        # Convert extracted string into datetime object
-        file_datetime = pd.to_datetime(time_str, format='%d-%b-%Y %H_%M', errors='coerce')
-        delta_minutes = round((file_datetime - datetime_start).total_seconds() / 60)
-        
-        # Add to dict using minutes-from-start as column key
-        chromatogram_dict[delta_minutes] = df['Value']
-        chromatogram_dict['Time'] = df['Time']
-
-    # Step 3: Convert the dictionary to a DataFrame
-    df_combined = pd.DataFrame.from_dict(chromatogram_dict)
-    df_combined.index = df['Time']
-    df_combined = df_combined.drop(columns='Time')
-    
-    # Step 4: Optionally save the combined DataFrame to a CSV file
-    if output_path and output_name:
-        df_combined.to_csv(f"{output_path}/{output_name}", index=True)
-
-    return df_combined
 
 def baseline_correct_column(col, time_index, start, end):
     # Select the baseline window values for this column based on the provided time index.
