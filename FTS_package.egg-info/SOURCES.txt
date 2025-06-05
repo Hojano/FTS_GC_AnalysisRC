@@ -1,8 +1,8 @@
 README.md
 requirements.txt
 setup.py
+FTS_Analysis_GC/FTS_Analysis_GC.py
 FTS_Analysis_GC/__init__.py
-FTS_Analysis_GC/online_gc_utilsRCI.py
 FTS_package.egg-info/PKG-INFO
 FTS_package.egg-info/SOURCES.txt
 FTS_package.egg-info/dependency_links.txt
