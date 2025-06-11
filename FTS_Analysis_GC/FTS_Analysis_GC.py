@@ -153,7 +153,7 @@ def chromatogram(file_list, file_type:str=Literal['FID', 'AuxLeft', 'AuxRight'],
         fid_datetime = pd.to_datetime(fid_time_str, format='%d-%b-%Y %H_%M', errors='coerce')
         start_times.append(fid_datetime)
     datetime_start = min(start_times) # Use earliest time as reference point
-    dt_file = os.path.join(output_path, output_name.replace('.csv', '_datetime_start.txt'))
+    dt_file = os.path.join(output_path, output_name='start_datetime_fromGC.txt')
     with open(dt_file, 'w') as f: # Save datetime_start as a text file
         f.write(str(datetime_start))
     chromatogram_dict = {}
