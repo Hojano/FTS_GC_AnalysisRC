@@ -120,18 +120,19 @@ def chromatogram(file_list, file_type:str=Literal['FID', 'AuxLeft', 'AuxRight'],
     """
     output_file = os.path.join(output_path, output_name)
 
-    #Check if output file already exists
-    if os.path.isfile(output_file):
-        print(f"[INFO] Data is already loaded: {output_name} exists in {output_path}.")
-        return None
-
-    #Step 1: Determine the earliest start time from FID list
+    # Always reconstruct datetime_start from fid_reference_list
     start_times = []
     for fid in fid_reference_list:
         fid_time_str = fid.split('FID_')[-1].split('.txt')[0]
         fid_datetime = pd.to_datetime(fid_time_str, format='%d-%b-%Y %H_%M', errors='coerce')
         start_times.append(fid_datetime)
-    datetime_start = min(start_times) # Use earliest time as reference point
+    datetime_start = min(start_times) if start_times else None # Use earliest time as reference point
+
+    # If output file exists, just load and return it with datetime_start
+    if os.path.isfile(output_file):
+        print(f"[INFO] Data is already loaded: {output_name} exists in {output_path}.")
+        df_combined = pd.read_csv(output_file, index_col=0, low_memory=False)
+        return df_combined, datetime_start 
 
     chromatogram_dict = {}
 
