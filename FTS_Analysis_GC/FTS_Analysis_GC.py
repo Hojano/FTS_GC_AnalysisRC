@@ -231,3 +231,102 @@ def integrate_named_peaks(DF, named_peak_windows):
     result_df = pd.DataFrame(result)
     result_df.index.name = "Time_Point"
     return result_df
+
+def parse_logfile_areas(area_df, log_df):
+    """
+    Matches each chromatogram injection with the closest reactor conditions
+    based on Time on Stream (TOS in minutes), and adds the exact DateTime.
+
+    Parameters:
+        area_df (pd.DataFrame): DataFrame with TOS as index (float).
+        log_df (pd.DataFrame): DataFrame with DateTime as index, and 'TOS' as a column (float).
+
+    Returns:
+        pd.DataFrame: Combined DataFrame indexed by TOS, with matched reactor conditions and DateTime column.
+    """
+    # Step 1: Prepare area_df
+    area_df = area_df.copy()
+    area_df['TOS'] = area_df.index.astype(float)
+    area_df = area_df.reset_index(drop=True)
+
+    # Step 2: Prepare log_df — move DateTime index into a column
+    log_df = log_df.copy()
+    log_df = log_df.reset_index()  # index becomes 'DateTime'
+    log_df['TOS'] = log_df['TOS'].astype(float)
+    log_df = log_df.sort_values('TOS')
+
+    # Step 3: Match on nearest TOS
+    combined_df = pd.merge_asof(
+        area_df.sort_values('TOS'),
+        log_df,
+        on='TOS',
+        direction='nearest'
+    )
+    # Step 4: Set TOS as index, keep DateTime as column
+    combined_df = combined_df.set_index('TOS')
+
+    return combined_df
+
+def plot_rawareas_log(combined_df, experiment_name, integration_gases, gas_flow_columns, plot_against='TOS'):
+    """
+    Plots 3 stacked subplots:
+    1. Integration values of gases (C1–C4, CO2, CO, Ar, etc.)
+    2. Pressure & Oven Temp
+    3. Gas flows
+    
+    Parameters:
+        combined_df (pd.DataFrame): Contains integration values + log values (index: TOS, column: DateTime).
+        experiment_name (str): Title of the experiment.
+        integration_gases (list of str): List of integration gas column names (e.g. ['C1', 'C2', 'CO', 'Ar']).
+        gas_flow_columns (list of str): List of gas flow column names (e.g. ['MFC CO pv', 'MFC H2 pv']).
+        plot_against (str): 'TOS' or 'datetime'
+    """
+    # X-axis setup
+    if plot_against.lower() == 'datetime':
+        x_axis = combined_df['DateTime']
+        x_label = 'Date/Time'
+    else:
+        x_axis = combined_df.index
+        x_label = 'Time on Stream (min)'
+
+    # Create subplots
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(14, 12), sharex=True)
+
+    # --- Top Plot: Integration values ---
+    for gas in integration_gases:
+        if gas in combined_df.columns:
+            ax1.plot(x_axis, combined_df[gas], label=gas, marker='o', linestyle='')
+    ax1.set_ylabel('Area (pA·min)')
+    ax1.set_title(f'Peak Areas from Chromatograms — {experiment_name}')
+    ax1.legend()
+
+    # --- Middle Plot: Pressure and Oven Temperature ---
+    ax2.plot(x_axis, combined_df['Pressure R1'], color='tab:blue', label='Pressure (barg)')
+    ax2.set_ylabel('Pressure (barg)', color='tab:blue')
+    ax2.tick_params(axis='y', labelcolor='tab:blue')
+
+    ax_temp = ax2.twinx()
+    ax_temp.plot(x_axis, combined_df['Oven PV'], color='tab:red', label='Oven Temp (°C)')
+    ax_temp.set_ylabel('Oven Temp (°C)', color='tab:red')
+    ax_temp.tick_params(axis='y', labelcolor='tab:red')
+    ax2.set_title(f'Pressure and Oven Temperature over {x_label}')
+
+    # --- Bottom Plot: Gas Flows ---
+    for gas_col in gas_flow_columns:
+        if gas_col in combined_df.columns:
+            ax3.plot(x_axis, combined_df[gas_col], label=gas_col)
+    if 'Total Flow' in combined_df.columns:
+        ax3.plot(x_axis, combined_df['Total Flow'], label='Total Flow', color='black')
+
+    ax3.set_ylabel('Gas Flow (ml/min)')
+    ax3.set_xlabel(x_label)
+    ax3.legend(loc='upper right')
+    ax3.set_title(f'Gas Flows over {x_label}')
+
+    # Optional TOS ticks
+    if plot_against.lower() == 'tos':
+        xticks = np.arange(combined_df.index.min(), combined_df.index.max() + 1, 200)
+        ax3.set_xticks(xticks)
+
+    plt.tight_layout()
+    plt.show()
