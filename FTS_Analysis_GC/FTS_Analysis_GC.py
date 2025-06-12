@@ -3,6 +3,7 @@ from scipy import integrate
 import os
 from typing import Literal
 import matplotlib.pyplot as plt
+import numpy as np
 
 experiment_path=None
 def collect_chromatogram_files(experiment_path):
