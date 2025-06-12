@@ -31,24 +31,24 @@ def collect_chromatogram_files(experiment_path):
     AuxRight_0 = pd.read_csv(AuxRightList[0], names=['Time', 'Step', 'Value'], sep='\t', skiprows=43) if AuxRightList else None
     return FIDList, AuxLeftList, AuxRightList, FID_0, AuxLeft_0, AuxRight_0
 
-def read_logfile(experiment_path, gases_to_plot=None):
+def read_logfile(experiment_path, gases_to_plot=None, datetime_start=None, plot_against='TOS'):
     """
-    Reads reactor logfile(s) from experiment_path, filters for on-stream (Valve 9 = 1),
-    plots pressure/temp and gas flows over time, and returns the processed logfile DataFrame.
+    Reads and processes reactor logfile(s) from experiment_path.
 
     Parameters:
         experiment_path (str): Path to the experiment folder containing logfiles.
-        gases_to_plot (list of str): List of gases to plot (e.g. ['CO', 'H2', 'Ar']). Default: all common gases.
+        gases_to_plot (list of str): Gases to plot (e.g. ['CO', 'H2']). Default: all common.
+        datetime_start (datetime or str): Reference start time for TOS calculation.
+        plot_against (str): 'TOS' (default) or 'datetime' for x-axis reference.
 
     Returns:
-        pd.DataFrame: Processed logfile dataframe with DateTime index and filtered for Valve 9 = 1.
+        pd.DataFrame: Processed logfile with DateTime index and 'TOS' column (in minutes).
     """
     # Step 1: Collect .txt logfiles
-    logfile_files = sorted([file for file in os.listdir(experiment_path) if file.endswith('.txt')])
-    print(logfile_files)
-    if len(logfile_files) == 0:
+    logfile_files = sorted([f for f in os.listdir(experiment_path) if f.endswith('.txt')])
+    if not logfile_files:
         raise ValueError('No logfile found in the specified path.')
-
+    
     # Step 2: Read header from first logfile
     df1 = pd.read_csv(os.path.join(experiment_path, logfile_files[0]), header=None, sep='\t', skiprows=1, nrows=1)
     header_row = df1.iloc[0].tolist()
@@ -57,12 +57,12 @@ def read_logfile(experiment_path, gases_to_plot=None):
     if len(logfile_files) > 1:
         print('Multiple logfiles found! Combining them...')
         logfile = pd.concat([
-            pd.read_csv(os.path.join(experiment_path, i), sep='\t', skiprows=2, names=header_row)
-            for i in logfile_files
+            pd.read_csv(os.path.join(experiment_path, f), sep='\t', skiprows=2, names=header_row)
+            for f in logfile_files
         ])
     else:
         logfile = pd.read_csv(os.path.join(experiment_path, logfile_files[0]), sep='\t', skiprows=2, names=header_row)
-
+    
     # Step 4: Parse datetime and filter for Valve 9 ON (reactor line)
     logfile.index = pd.to_datetime(logfile['Date/Time'], format='%d-%b-%Y %H:%M:%S', errors='coerce')
     logfile = logfile.drop(columns='Date/Time')
@@ -73,12 +73,21 @@ def read_logfile(experiment_path, gases_to_plot=None):
     static_columns = ['Valve 9', 'Oven PV', 'Pressure R1', 'Pressure R2', 'BPC A-SP', 'MFM']
     selected_columns = static_columns + mfc_columns
     logfile = logfile[selected_columns]
+    logfile['Total Flow'] = logfile[mfc_columns].sum(axis=1)  # Calculate total flow
 
-    # Step 6: Calculate total flow
-    logfile['Total Flow'] = logfile[mfc_columns].sum(axis=1)
+    # Handle datetime_start and compute TOS
+    if datetime_start is None:
+        datetime_start = logfile.index[0]  # Default to first on-stream timestamp
+        print(f"datetime_start not provided, using: {datetime_start}")
+    else:
+        datetime_start = pd.to_datetime(datetime_start)
 
-    # Step 7: Define which gas flows to plot
-    gas_map = {
+    logfile['TOS'] = (logfile.index - datetime_start).total_seconds() / 60  # minutes
+
+    # Choose x-axis for plotting
+    x_axis = logfile['TOS'] if plot_against.lower() == 'tos' else logfile.index
+
+    gas_map = { # Step 7: Define which gas flows to plot
         'CO': 'MFC CO pv',
         'H2': 'MFC H2 pv',
         'Ar': 'MFC Ar pv',
@@ -89,39 +98,9 @@ def read_logfile(experiment_path, gases_to_plot=None):
     }
     if gases_to_plot is None:
         gases_to_plot = list(gas_map.keys())
-
-    gas_columns = [gas_map[gas] for gas in gases_to_plot if gas_map[gas] in logfile.columns]
-
-    # Step 8: Plotting
-    fig, (ax1, ax3) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
-
-    # Plot Pressure and Oven Temp
-    ax1.plot(logfile.index, logfile['Pressure R1'], color='tab:blue', label='Pressure (barg)')
-    ax1.set_ylabel('Pressure (barg)', color='tab:blue')
-    ax1.tick_params(axis='y', labelcolor='tab:blue')
-
-    ax2 = ax1.twinx()
-    ax2.plot(logfile.index, logfile['Oven PV'], color='tab:red', label='Oven Temp (°C)')
-    ax2.set_ylabel('Oven Temp (°C)', color='tab:red')
-    ax2.tick_params(axis='y', labelcolor='tab:red')
-
-    ax1.set_title('Pressure and Oven Temperature over Time')
-
-    # Plot Gas Flows
-    for gas_col in gas_columns:
-        ax3.plot(logfile.index, logfile[gas_col], label=gas_col)
-
-    ax3.plot(logfile.index, logfile['Total Flow'], label='Total Flow', color='black')
-    ax3.set_ylabel('Gas Flow (ml/min)')
-    ax3.set_xlabel('Date/Time')
-    ax3.legend(loc='upper right')
-    ax3.set_title('Gas Flows During Reaction')
-
-    plt.tight_layout()
-    plt.show()
-
-    # Return processed logfile dataframe
-    return logfile
+    gas_columns = [gas_map[g] for g in gases_to_plot if gas_map.get(g) in logfile.columns]
+    
+    return logfile, x_axis, gas_columns, plot_against
 
 FIDList=[]
 def chromatogram(file_list, file_type:str=Literal['FID', 'AuxLeft', 'AuxRight'], fid_reference_list=FIDList, output_path=experiment_path, output_name:str=Literal['FID_total1.csv', 'AuxLeft_total1.csv', 'AuxRight_total1.csv']):    
