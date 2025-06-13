@@ -1,4 +1,6 @@
-import pandas
-from scipy 
+import pandas as pd
+from scipy import integrate
 import os
 from typing import Literal
+import matplotlib.pyplot as plt
+import numpy as np
