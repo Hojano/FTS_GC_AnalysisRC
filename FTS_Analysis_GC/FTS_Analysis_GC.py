@@ -267,7 +267,8 @@ def parse_logfile_areas(area_df, log_df):
     combined_df = combined_df.set_index('TOS')
 
     return combined_df
-
+experiment_name = ''
+peak_names = []
 def plot_comined_overview(
     combined_df,
     gas_flow_columns,
@@ -303,7 +304,7 @@ def plot_comined_overview(
     else:
         x_axis = combined_df.index
         x_label = 'Time on Stream (min)'
-        
+
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(14, 12), sharex=True)
 
     # --- Top Plot: Integration values ---
