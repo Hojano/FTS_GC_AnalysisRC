@@ -268,19 +268,33 @@ def parse_logfile_areas(area_df, log_df):
 
     return combined_df
 
-def plot_rawareas_log(combined_df, experiment_name, integration_gases, gas_flow_columns, plot_against='TOS'):
+def plot_comined_overview(
+    combined_df,
+    gas_flow_columns,
+    experiment_name=experiment_name,
+    integration_gases=peak_names,
+    plot_against='TOS',
+    xlim=None,
+    ax1_ylim=None,
+    ax1_label='Area (pA·min)',
+    ax1_title='Peak Areas from Chromatograms'
+):
     """
     Plots 3 stacked subplots:
     1. Integration values of gases (C1–C4, CO2, CO, Ar, etc.)
     2. Pressure & Oven Temp
     3. Gas flows
-    
+
     Parameters:
-        combined_df (pd.DataFrame): Contains integration values + log values (index: TOS, column: DateTime).
+        combined_df (pd.DataFrame): Combined dataframe with chromatogram + log data.
         experiment_name (str): Title of the experiment.
-        integration_gases (list of str): List of integration gas column names (e.g. ['C1', 'C2', 'CO', 'Ar']).
-        gas_flow_columns (list of str): List of gas flow column names (e.g. ['MFC CO pv', 'MFC H2 pv']).
+        integration_gases (list of str): Integration gas column names.
+        gas_flow_columns (list of str): Gas flow column names.
         plot_against (str): 'TOS' or 'datetime'
+        xlim (tuple): (min, max) for x-axis
+        ax1_ylim (tuple): (min, max) for top plot y-axis
+        ax1_label (str): Y-axis label for chromatogram result plot
+        ax1_title (str): Title for chromatogram result plot
     """
     # X-axis setup
     if plot_against.lower() == 'datetime':
@@ -289,19 +303,20 @@ def plot_rawareas_log(combined_df, experiment_name, integration_gases, gas_flow_
     else:
         x_axis = combined_df.index
         x_label = 'Time on Stream (min)'
-
-    # Create subplots
+        
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(14, 12), sharex=True)
 
     # --- Top Plot: Integration values ---
     for gas in integration_gases:
         if gas in combined_df.columns:
             ax1.plot(x_axis, combined_df[gas], label=gas, marker='o', linestyle='')
-    ax1.set_ylabel('Area (pA·min)')
-    ax1.set_title(f'Peak Areas from Chromatograms — {experiment_name}')
+    ax1.set_ylabel(ax1_label)
+    ax1.set_title(f'{ax1_title} \n from {experiment_name}')
     ax1.legend()
+    if ax1_ylim:
+        ax1.set_ylim(ax1_ylim)
 
-    # --- Middle Plot: Pressure and Oven Temperature ---
+    # --- Middle Plot: Pressure and Oven Temp ---
     ax2.plot(x_axis, combined_df['Pressure R1'], color='tab:blue', label='Pressure (barg)')
     ax2.set_ylabel('Pressure (barg)', color='tab:blue')
     ax2.tick_params(axis='y', labelcolor='tab:blue')
@@ -318,16 +333,19 @@ def plot_rawareas_log(combined_df, experiment_name, integration_gases, gas_flow_
             ax3.plot(x_axis, combined_df[gas_col], label=gas_col)
     if 'Total Flow' in combined_df.columns:
         ax3.plot(x_axis, combined_df['Total Flow'], label='Total Flow', color='black')
-
     ax3.set_ylabel('Gas Flow (ml/min)')
     ax3.set_xlabel(x_label)
     ax3.legend(loc='upper right')
     ax3.set_title(f'Gas Flows over {x_label}')
 
-    # Optional TOS ticks
+    # Apply TOS xticks if relevant
     if plot_against.lower() == 'tos':
-        xticks = np.arange(combined_df.index.min(), combined_df.index.max() + 1, 200)
-        ax3.set_xticks(xticks)
+        ax3.set_xticks(np.arange(combined_df.index.min(), combined_df.index.max() + 1, 200))
+
+    # Apply xlim if provided
+    if xlim:
+        ax1.set_xlim(xlim)
 
     plt.tight_layout()
     plt.show()
+
