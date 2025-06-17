@@ -269,6 +269,7 @@ def parse_logfile_areas(area_df, log_df):
     return combined_df
 experiment_name = ''
 peak_names = []
+
 def plot_comined_overview(
     combined_df,
     gas_flow_columns,
