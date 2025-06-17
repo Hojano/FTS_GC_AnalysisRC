@@ -32,6 +32,50 @@ def collect_chromatogram_files(experiment_path):
     AuxRight_0 = pd.read_csv(AuxRightList[0], names=['Time', 'Step', 'Value'], sep='\t', skiprows=43) if AuxRightList else None
     return FIDList, AuxLeftList, AuxRightList, FID_0, AuxLeft_0, AuxRight_0
 
+class chromatogram_FTGC:
+    def __init__(self, filename, datetime_start):
+        self.df = pd.read_csv(filename, names=['Time', 'Step', 'Value'], sep='\t', skiprows=43)
+        self.df = self.df.replace(',', '', regex=True)
+        #self.df = self.df.astype('float')
+
+        self.Name = os.path.basename(filename)
+        base = self.Name.split('.txt')[0]
+        # Determine where the timestamp starts
+        if base.startswith('FID_'):
+            time_str = base.split('FID_')[-1]
+        elif base.startswith('TCD_AuxLeft_'):
+            time_str = base.split('TCD_AuxLeft_')[-1]
+        elif base.startswith('TCD_AuxRight_'):
+            time_str = base.split('TCD_AuxRight_')[-1]
+        else:
+            raise ValueError(f"Unrecognized filename format: {self.Name}")
+        self.time_str = time_str  # e.g., '06-Apr-2025 16_29'
+        self.file_datetime = pd.to_datetime(self.time_str, format='%d-%b-%Y %H_%M', errors='coerce')
+
+        self.DateTimeFromStart = self.file_datetime - datetime_start
+        self.MinutesFromStart = round(self.DateTimeFromStart.total_seconds() / 60)
+
+class chromatogram_HTHPGC:
+    def __init__(self, filename, datetime_start):
+        self.df = pd.read_csv(filename, names=['Time', 'Step', 'Value'], sep='\t', skiprows=43)
+        self.df = self.df.replace('n.a.', 0, regex=True)
+        self.df = self.df.replace(',', '.', regex=True)
+        self.Name = os.path.basename(filename)
+        # Extract time from filename
+        self.time_str_ = self.Name.split('.txt')[0]
+        if 'FID' in self.time_str_:
+            self.time_str = self.time_str_.split('Ch1_')[-1]
+        elif 'TCD' in self.time_str_:
+            self.time_str = self.time_str_.split('Ch2_3_')[-1]
+        else:
+            self.time_str = self.time_str_  # fallback
+        # Convert Dutch to English months if needed
+        self.time_str = self.time_str.replace('okt', 'oct').replace('mei', 'may')
+        self.file_datetime = pd.to_datetime(self.time_str, format='%d-%b-%Y %H_%M', errors='coerce')
+        self.DateTimeFromStart = self.file_datetime - datetime_start
+        self.MinutesFromStart = round(self.DateTimeFromStart.total_seconds() / 60)
+        self.df = self.df.astype('float')
+
 def collect_chromatogram_filesAll(experiment_path, setup: str = 'FTGC'):
     """
     Collects chromatogram file lists and loads the first file for preview, based on setup type.
