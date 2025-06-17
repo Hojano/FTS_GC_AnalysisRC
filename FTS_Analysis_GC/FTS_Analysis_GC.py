@@ -32,6 +32,99 @@ def collect_chromatogram_files(experiment_path):
     AuxRight_0 = pd.read_csv(AuxRightList[0], names=['Time', 'Step', 'Value'], sep='\t', skiprows=43) if AuxRightList else None
     return FIDList, AuxLeftList, AuxRightList, FID_0, AuxLeft_0, AuxRight_0
 
+class chromatogram_FTGC:
+    def __init__(self, filename, datetime_start):
+        self.df = pd.read_csv(filename, names=['Time', 'Step', 'Value'], sep='\t', skiprows=43)
+        self.df = self.df.replace(',', '', regex=True)
+        #self.df = self.df.astype('float')
+
+        self.Name = os.path.basename(filename)
+        base = self.Name.split('.txt')[0]
+        # Determine where the timestamp starts
+        if base.startswith('FID_'):
+            time_str = base.split('FID_')[-1]
+        elif base.startswith('TCD_AuxLeft_'):
+            time_str = base.split('TCD_AuxLeft_')[-1]
+        elif base.startswith('TCD_AuxRight_'):
+            time_str = base.split('TCD_AuxRight_')[-1]
+        else:
+            raise ValueError(f"Unrecognized filename format: {self.Name}")
+        self.time_str = time_str  # e.g., '06-Apr-2025 16_29'
+        self.file_datetime = pd.to_datetime(self.time_str, format='%d-%b-%Y %H_%M', errors='coerce')
+
+        self.DateTimeFromStart = self.file_datetime - datetime_start
+        self.MinutesFromStart = round(self.DateTimeFromStart.total_seconds() / 60)
+
+class chromatogram_HTHPGC:
+    def __init__(self, filename, datetime_start):
+        self.df = pd.read_csv(filename, names=['Time', 'Step', 'Value'], sep='\t', skiprows=43)
+        self.df = self.df.replace('n.a.', 0, regex=True)
+        self.df = self.df.replace(',', '.', regex=True)
+        self.Name = os.path.basename(filename)
+        # Extract time from filename
+        self.time_str_ = self.Name.split('.txt')[0]
+        if 'FID' in self.time_str_:
+            self.time_str = self.time_str_.split('Ch1_')[-1]
+        elif 'TCD' in self.time_str_:
+            self.time_str = self.time_str_.split('Ch2_3_')[-1]
+        else:
+            self.time_str = self.time_str_  # fallback
+        # Convert Dutch to English months if needed
+        self.time_str = self.time_str.replace('okt', 'oct').replace('mei', 'may')
+        self.file_datetime = pd.to_datetime(self.time_str, format='%d-%b-%Y %H_%M', errors='coerce')
+        self.DateTimeFromStart = self.file_datetime - datetime_start
+        self.MinutesFromStart = round(self.DateTimeFromStart.total_seconds() / 60)
+        self.df = self.df.astype('float')
+
+def collect_chromatogram_filesAll(experiment_path, setup: str = 'FTGC'):
+    """
+    Collects chromatogram file lists and loads the first file for preview, based on setup type.
+
+    Args:
+        experiment_path (str): Path to the experiment directory.
+        setup (str): Either 'FTGC' or 'HTHPGC' indicating the naming pattern of the chromatogram files.
+
+    Returns:
+        tuple: (FIDList, AuxLeftList, AuxRightList, FID_0, AuxLeft_0, AuxRight_0)
+    """
+    # Path to chromatogram files
+    DataDict = os.path.join(experiment_path, 'chromatograms')
+
+    # Initialize lists
+    FIDList = []
+    AuxLeftList = []
+    AuxRightList = []
+
+    # File matching patterns based on setup
+    if setup == 'FTGC':
+        fid_pattern = 'FID_'
+        left_pattern = 'TCD_AuxLeft'
+        right_pattern = 'TCD_AuxRight'
+    elif setup == 'HTHPGC':
+        fid_pattern = 'FID_Ch1'
+        left_pattern = 'TCD_Ch2_3'  # Assuming AuxLeft is treated as TCD_Ch2_3
+        right_pattern = ''  # No AuxRight assumed for HTHPGC, adjust if needed
+    else:
+        raise ValueError(f"Unknown setup: {setup}. Must be 'FTGC' or 'HTHPGC'.")
+
+    # Traverse the directory
+    for root, dirs, files in os.walk(DataDict, topdown=True):
+        for name in files:
+            full_path = os.path.join(root, name)
+            if fid_pattern in name:
+                FIDList.append(full_path)
+            if left_pattern in name:
+                AuxLeftList.append(full_path)
+            if right_pattern and right_pattern in name:
+                AuxRightList.append(full_path)
+
+    # Read first file previews if available
+    FID_0 = pd.read_csv(FIDList[0], names=['Time', 'Step', 'Value'], sep='\t', skiprows=43) if FIDList else None
+    AuxLeft_0 = pd.read_csv(AuxLeftList[0], names=['Time', 'Step', 'Value'], sep='\t', skiprows=43) if AuxLeftList else None
+    AuxRight_0 = pd.read_csv(AuxRightList[0], names=['Time', 'Step', 'Value'], sep='\t', skiprows=43) if AuxRightList else None
+
+    return FIDList, AuxLeftList, AuxRightList, FID_0, AuxLeft_0, AuxRight_0
+
 def read_logfile(experiment_path, gases_to_plot=None, datetime_start=None, plot_against='TOS'):
     """
     Reads and processes reactor logfile(s) from experiment_path.
@@ -172,6 +265,152 @@ def chromatogram(file_list, file_type:str=Literal['FID', 'AuxLeft', 'AuxRight'],
 
     return df_combined, datetime_start
 
+def chromatogramAll(
+    file_list,
+    setup: Literal['HTHPGC', 'FTGC'],
+    output_path,
+    output_name,
+    fid_reference_list=None
+):
+    """
+    Processes chromatogram files for a given setup ('HTHPGC' or 'FTGC'),
+    aligns them by minutes from experiment start time, and saves to CSV.
+
+    Parameters:
+        file_list (list of str): List of chromatogram file paths to process.
+        setup (str): Either 'HTHPGC' or 'FTGC'.
+        output_path (str): Folder to save the output CSV.
+        output_name (str): Output CSV filename.
+        fid_reference_list (list of str): Required for HTHPGC to determine datetime_start.
+
+    Returns:
+        df_combined (pd.DataFrame): Combined chromatogram data.
+        datetime_start (datetime): Reference start datetime.
+    """
+    output_file = os.path.join(output_path, output_name)
+
+    # 1. Determine datetime_start based on setup
+    if setup == 'HTHPGC':
+        if not fid_reference_list:
+            raise ValueError("fid_reference_list is required for setup='HTHPGC'")
+        start_times = []
+        for fid in fid_reference_list:
+            fid_name = os.path.basename(fid)
+            time_str = fid_name.split('FID_Ch1_')[-1].split('.txt')[0]
+            time_str = time_str.replace('okt', 'oct').replace('mei', 'may')
+            dt = pd.to_datetime(time_str, format='%d-%b-%Y %H_%M', errors='coerce')
+            start_times.append(dt)
+        datetime_start = min(start_times)
+    elif setup == 'FTGC':
+        start_times = []
+        for file in file_list:
+            base = os.path.splitext(os.path.basename(file))[0]
+            if base.startswith('FID_'):
+                time_str = base.split('FID_')[-1]
+            elif base.startswith('TCD_AuxLeft_'):
+                time_str = base.split('TCD_AuxLeft_')[-1]
+            elif base.startswith('TCD_AuxRight_'):
+                time_str = base.split('TCD_AuxRight_')[-1]
+            else:
+                continue  # Skip unrecognized files
+
+            dt = pd.to_datetime(time_str, format='%d-%b-%Y %H_%M', errors='coerce')
+            if pd.notna(dt):
+                start_times.append(dt)
+        datetime_start = min(start_times)
+    else:
+        raise ValueError(f"Unsupported setup: {setup}")
+
+    # 2. Load from cache if CSV exists
+    if os.path.isfile(output_file):
+        print(f"[INFO] [INFO] Data is already loaded: {output_name} exists in {output_path}.")
+        df_combined = pd.read_csv(output_file, index_col=0, low_memory=False)
+        return df_combined, datetime_start
+
+    # 3. Process chromatograms
+    chromatogram_dict = {}
+    for file_path in file_list:
+        if setup == 'HTHPGC':
+            chromo = chromatogram_HTHPGC(file_path, datetime_start)
+        elif setup == 'FTGC':
+            chromo = chromatogram_FTGC(file_path, datetime_start)
+
+        chromatogram_dict[chromo.MinutesFromStart] = chromo.df['Value']
+        chromatogram_dict['Time'] = chromo.df['Time']
+
+    # 4. Combine and export
+    df_combined = pd.DataFrame.from_dict(chromatogram_dict)
+    df_combined.index = chromo.df['Time']
+    df_combined = df_combined.drop(columns='Time')
+    df_combined.to_csv(output_file)
+
+    print(f"[INFO] Chromatogram saved to: {output_file}")
+    return df_combined, datetime_start
+
+def plot_chromatogram(
+    df_list,
+    labels=None,
+    tos_range=(0, 200),
+    show_legend=False,
+    show_peaks=True,
+    peak_dict=None,
+    colormap='viridis'
+):
+    """
+    Plots layered chromatograms from multiple DataFrames with optional peak annotations.
+
+    Parameters:
+        df_list (list of pd.DataFrame): List of chromatogram DataFrames.
+        labels (list of str): Labels corresponding to each DataFrame.
+        tos_range (tuple): Time-on-stream range (min, max) to filter columns.
+        show_legend (bool): Whether to show the legend.
+        show_peaks (bool): Whether to annotate predefined peak regions.
+        peak_dict (dict): Dictionary of peaks per channel, e.g., {'FID': FID_peaks}.
+        colormap (str): Matplotlib colormap name (e.g., 'viridis', 'turbo').
+    """
+    n = len(df_list)
+    labels = labels if labels else [f"Channel {i+1}" for i in range(n)]
+    fig, axes = plt.subplots(n, 1, figsize=(12, 3.5 * n), sharex=True)
+
+    if n == 1:
+        axes = [axes]
+
+    for i, (df, label) in enumerate(zip(df_list, labels)):
+        ax = axes[i]
+        # Filter by TOS range
+        cols = [col for col in df.columns if tos_range[0] <= float(col) <= tos_range[1]]
+        df_sub = df[cols]
+
+        # Get colors
+        cmap = plt.get_cmap(colormap)
+        clr = cmap(np.linspace(0, 1, len(df_sub.columns)))
+
+        # Plot each chromatogram
+        for j, col in enumerate(df_sub.columns):
+            ax.plot(df_sub.index, df_sub[col], color=clr[j], label=f"TOS {col} min" if show_legend else None)
+        ax.set_title(f"{label}")
+        ax.set_ylabel("Signal (a.u.)")
+
+        # Optional: annotate peaks
+        if show_peaks and peak_dict:
+            matched_key = None
+            for key in peak_dict.keys():
+                if key.lower() in label.lower():
+                    matched_key = key
+                    break
+            if matched_key:
+                for compound, (start, end), _ in peak_dict[matched_key]:
+                    ax.axvline(start, color='gray', linestyle='--', linewidth=1)
+                    ax.axvline(end, color='gray', linestyle='--', linewidth=1)
+                    ax.text((start + end)/2, ax.get_ylim()[1]*0.9, compound,
+                            rotation=90, ha='center', va='top', fontsize=9, color='black')
+
+        if show_legend:
+            ax.legend(loc='upper right', fontsize=8)
+
+    axes[-1].set_xlabel("Retention Time (min)")
+    plt.tight_layout()
+    plt.show()
 
 def baseline_correct_column(col, time_index, start, end):
     # Select the baseline window values for this column based on the provided time index.
