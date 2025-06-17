@@ -347,6 +347,56 @@ def chromatogramAll(
     print(f"[INFO] Chromatogram saved to: {output_file}")
     return df_combined, datetime_start
 
+def plot_chromatograms(df_list, labels=None, tos_min=None, tos_max=None, figsize=(15, 5), title=None, show_legend=True):
+    """
+    Plots chromatograms from multiple channels over a specified TOS (Time on Stream) range with color mapping.
+
+    Parameters:
+        df_list (list of pd.DataFrame): List of chromatogram DataFrames.
+        labels (list of str): Labels for each subplot.
+        tos_min (float): Minimum TOS (in minutes) to include.
+        tos_max (float): Maximum TOS (in minutes) to include.
+        figsize (tuple): Figure size (width, height).
+        title (str): Optional title for the whole figure.
+        show_legend (bool): Whether to display legends in subplots.
+    """
+    num_channels = len(df_list)
+    if labels is None:
+        labels = [f"Channel {i+1}" for i in range(num_channels)]
+
+    fig, axes = plt.subplots(num_channels, 1, figsize=(figsize[0], figsize[1]*num_channels), sharex=False)
+    if num_channels == 1:
+        axes = [axes]  # Ensure iterable
+
+    for i, (df, ax, label) in enumerate(zip(df_list, axes, labels)):
+        # Convert column headers to float for TOS filtering
+        try:
+            tos_all = df.columns.astype(float)
+        except:
+            raise ValueError(f"Column names in DataFrame {label} must be convertible to float (TOS in minutes).")
+
+        # Filter by TOS range
+        mask = ((tos_all >= (tos_min if tos_min is not None else tos_all.min())) &
+                (tos_all <= (tos_max if tos_max is not None else tos_all.max())))
+        selected_cols = df.columns[mask]
+        clr = plt.cm.viridis(np.linspace(0, 1, len(selected_cols)))
+
+        for j, col in enumerate(selected_cols):
+            ax.plot(df.index, df[col], label=f"{col} min", color=clr[j])
+
+        ax.set_title(label)
+        ax.set_xlabel("Retention Time (min)")
+        ax.set_ylabel("Signal")
+        ax.grid(True)
+        if show_legend:
+            ax.legend(loc='upper right', fontsize='small', ncol=2)
+
+    if title:
+        fig.suptitle(title, fontsize=16)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.97] if title else None)
+    plt.show()
+
 def baseline_correct_column(col, time_index, start, end):
     # Select the baseline window values for this column based on the provided time index.
     baseline_values = col[ (time_index >= start) & (time_index <= end) ]
