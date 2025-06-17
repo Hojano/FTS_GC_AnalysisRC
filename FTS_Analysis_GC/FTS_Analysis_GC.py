@@ -347,54 +347,69 @@ def chromatogramAll(
     print(f"[INFO] Chromatogram saved to: {output_file}")
     return df_combined, datetime_start
 
-def plot_chromatograms(df_list, labels=None, tos_min=None, tos_max=None, figsize=(15, 5), title=None, show_legend=True):
+def plot_chromatogram(
+    df_list,
+    labels=None,
+    tos_range=(0, 200),
+    show_legend=False,
+    show_peaks=True,
+    peak_dict=None,
+    colormap='viridis'
+):
     """
-    Plots chromatograms from multiple channels over a specified TOS (Time on Stream) range with color mapping.
+    Plots layered chromatograms from multiple DataFrames with optional peak annotations.
 
     Parameters:
         df_list (list of pd.DataFrame): List of chromatogram DataFrames.
-        labels (list of str): Labels for each subplot.
-        tos_min (float): Minimum TOS (in minutes) to include.
-        tos_max (float): Maximum TOS (in minutes) to include.
-        figsize (tuple): Figure size (width, height).
-        title (str): Optional title for the whole figure.
-        show_legend (bool): Whether to display legends in subplots.
+        labels (list of str): Labels corresponding to each DataFrame.
+        tos_range (tuple): Time-on-stream range (min, max) to filter columns.
+        show_legend (bool): Whether to show the legend.
+        show_peaks (bool): Whether to annotate predefined peak regions.
+        peak_dict (dict): Dictionary of peaks per channel, e.g., {'FID': FID_peaks}.
+        colormap (str): Matplotlib colormap name (e.g., 'viridis', 'turbo').
     """
-    num_channels = len(df_list)
-    if labels is None:
-        labels = [f"Channel {i+1}" for i in range(num_channels)]
+    n = len(df_list)
+    labels = labels if labels else [f"Channel {i+1}" for i in range(n)]
+    fig, axes = plt.subplots(n, 1, figsize=(12, 3.5 * n), sharex=True)
 
-    fig, axes = plt.subplots(num_channels, 1, figsize=(figsize[0], figsize[1]*num_channels), sharex=False)
-    if num_channels == 1:
-        axes = [axes]  # Ensure iterable
+    if n == 1:
+        axes = [axes]
 
-    for i, (df, ax, label) in enumerate(zip(df_list, axes, labels)):
-        # Convert column headers to float for TOS filtering
-        try:
-            tos_all = df.columns.astype(float)
-        except:
-            raise ValueError(f"Column names in DataFrame {label} must be convertible to float (TOS in minutes).")
-
+    for i, (df, label) in enumerate(zip(df_list, labels)):
+        ax = axes[i]
         # Filter by TOS range
-        mask = ((tos_all >= (tos_min if tos_min is not None else tos_all.min())) &
-                (tos_all <= (tos_max if tos_max is not None else tos_all.max())))
-        selected_cols = df.columns[mask]
-        clr = plt.cm.viridis(np.linspace(0, 1, len(selected_cols)))
+        cols = [col for col in df.columns if tos_range[0] <= float(col) <= tos_range[1]]
+        df_sub = df[cols]
 
-        for j, col in enumerate(selected_cols):
-            ax.plot(df.index, df[col], label=f"{col} min", color=clr[j])
+        # Get colors
+        cmap = plt.get_cmap(colormap)
+        clr = cmap(np.linspace(0, 1, len(df_sub.columns)))
 
-        ax.set_title(label)
-        ax.set_xlabel("Retention Time (min)")
-        ax.set_ylabel("Signal")
-        ax.grid(True)
+        # Plot each chromatogram
+        for j, col in enumerate(df_sub.columns):
+            ax.plot(df_sub.index, df_sub[col], color=clr[j], label=f"TOS {col} min" if show_legend else None)
+        ax.set_title(f"{label}")
+        ax.set_ylabel("Signal (a.u.)")
+
+        # Optional: annotate peaks
+        if show_peaks and peak_dict:
+            matched_key = None
+            for key in peak_dict.keys():
+                if key.lower() in label.lower():
+                    matched_key = key
+                    break
+            if matched_key:
+                for compound, (start, end), _ in peak_dict[matched_key]:
+                    ax.axvline(start, color='gray', linestyle='--', linewidth=1)
+                    ax.axvline(end, color='gray', linestyle='--', linewidth=1)
+                    ax.text((start + end)/2, ax.get_ylim()[1]*0.9, compound,
+                            rotation=90, ha='center', va='top', fontsize=9, color='black')
+
         if show_legend:
-            ax.legend(loc='upper right', fontsize='small', ncol=2)
+            ax.legend(loc='upper right', fontsize=8)
 
-    if title:
-        fig.suptitle(title, fontsize=16)
-
-    plt.tight_layout(rect=[0, 0, 1, 0.97] if title else None)
+    axes[-1].set_xlabel("Retention Time (min)")
+    plt.tight_layout()
     plt.show()
 
 def baseline_correct_column(col, time_index, start, end):
