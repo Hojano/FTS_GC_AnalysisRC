@@ -32,6 +32,55 @@ def collect_chromatogram_files(experiment_path):
     AuxRight_0 = pd.read_csv(AuxRightList[0], names=['Time', 'Step', 'Value'], sep='\t', skiprows=43) if AuxRightList else None
     return FIDList, AuxLeftList, AuxRightList, FID_0, AuxLeft_0, AuxRight_0
 
+def collect_chromatogram_filesAll(experiment_path, setup: str = 'FTGC'):
+    """
+    Collects chromatogram file lists and loads the first file for preview, based on setup type.
+
+    Args:
+        experiment_path (str): Path to the experiment directory.
+        setup (str): Either 'FTGC' or 'HTHPGC' indicating the naming pattern of the chromatogram files.
+
+    Returns:
+        tuple: (FIDList, AuxLeftList, AuxRightList, FID_0, AuxLeft_0, AuxRight_0)
+    """
+    # Path to chromatogram files
+    DataDict = os.path.join(experiment_path, 'chromatograms')
+
+    # Initialize lists
+    FIDList = []
+    AuxLeftList = []
+    AuxRightList = []
+
+    # File matching patterns based on setup
+    if setup == 'FTGC':
+        fid_pattern = 'FID_'
+        left_pattern = 'TCD_AuxLeft'
+        right_pattern = 'TCD_AuxRight'
+    elif setup == 'HTHPGC':
+        fid_pattern = 'FID_Ch1'
+        left_pattern = 'TCD_Ch2_3'  # Assuming AuxLeft is treated as TCD_Ch2_3
+        right_pattern = ''  # No AuxRight assumed for HTHPGC, adjust if needed
+    else:
+        raise ValueError(f"Unknown setup: {setup}. Must be 'FTGC' or 'HTHPGC'.")
+
+    # Traverse the directory
+    for root, dirs, files in os.walk(DataDict, topdown=True):
+        for name in files:
+            full_path = os.path.join(root, name)
+            if fid_pattern in name:
+                FIDList.append(full_path)
+            if left_pattern in name:
+                AuxLeftList.append(full_path)
+            if right_pattern and right_pattern in name:
+                AuxRightList.append(full_path)
+
+    # Read first file previews if available
+    FID_0 = pd.read_csv(FIDList[0], names=['Time', 'Step', 'Value'], sep='\t', skiprows=43) if FIDList else None
+    AuxLeft_0 = pd.read_csv(AuxLeftList[0], names=['Time', 'Step', 'Value'], sep='\t', skiprows=43) if AuxLeftList else None
+    AuxRight_0 = pd.read_csv(AuxRightList[0], names=['Time', 'Step', 'Value'], sep='\t', skiprows=43) if AuxRightList else None
+
+    return FIDList, AuxLeftList, AuxRightList, FID_0, AuxLeft_0, AuxRight_0
+
 def read_logfile(experiment_path, gases_to_plot=None, datetime_start=None, plot_against='TOS'):
     """
     Reads and processes reactor logfile(s) from experiment_path.
@@ -172,6 +221,87 @@ def chromatogram(file_list, file_type:str=Literal['FID', 'AuxLeft', 'AuxRight'],
 
     return df_combined, datetime_start
 
+def chromatogramAll(
+    file_list,
+    setup: Literal['HTHPGC', 'FTGC'],
+    output_path,
+    output_name,
+    fid_reference_list=None
+):
+    """
+    Processes chromatogram files for a given setup ('HTHPGC' or 'FTGC'),
+    aligns them by minutes from experiment start time, and saves to CSV.
+
+    Parameters:
+        file_list (list of str): List of chromatogram file paths to process.
+        setup (str): Either 'HTHPGC' or 'FTGC'.
+        output_path (str): Folder to save the output CSV.
+        output_name (str): Output CSV filename.
+        fid_reference_list (list of str): Required for HTHPGC to determine datetime_start.
+
+    Returns:
+        df_combined (pd.DataFrame): Combined chromatogram data.
+        datetime_start (datetime): Reference start datetime.
+    """
+    output_file = os.path.join(output_path, output_name)
+
+    # 1. Determine datetime_start based on setup
+    if setup == 'HTHPGC':
+        if not fid_reference_list:
+            raise ValueError("fid_reference_list is required for setup='HTHPGC'")
+        start_times = []
+        for fid in fid_reference_list:
+            fid_name = os.path.basename(fid)
+            time_str = fid_name.split('FID_Ch1_')[-1].split('.txt')[0]
+            time_str = time_str.replace('okt', 'oct').replace('mei', 'may')
+            dt = pd.to_datetime(time_str, format='%d-%b-%Y %H_%M', errors='coerce')
+            start_times.append(dt)
+        datetime_start = min(start_times)
+    elif setup == 'FTGC':
+        start_times = []
+        for file in file_list:
+            base = os.path.splitext(os.path.basename(file))[0]
+            if base.startswith('FID_'):
+                time_str = base.split('FID_')[-1]
+            elif base.startswith('TCD_AuxLeft_'):
+                time_str = base.split('TCD_AuxLeft_')[-1]
+            elif base.startswith('TCD_AuxRight_'):
+                time_str = base.split('TCD_AuxRight_')[-1]
+            else:
+                continue  # Skip unrecognized files
+
+            dt = pd.to_datetime(time_str, format='%d-%b-%Y %H_%M', errors='coerce')
+            if pd.notna(dt):
+                start_times.append(dt)
+        datetime_start = min(start_times)
+    else:
+        raise ValueError(f"Unsupported setup: {setup}")
+
+    # 2. Load from cache if CSV exists
+    if os.path.isfile(output_file):
+        print(f"[INFO] [INFO] Data is already loaded: {output_name} exists in {output_path}.")
+        df_combined = pd.read_csv(output_file, index_col=0, low_memory=False)
+        return df_combined, datetime_start
+
+    # 3. Process chromatograms
+    chromatogram_dict = {}
+    for file_path in file_list:
+        if setup == 'HTHPGC':
+            chromo = chromatogram_HTHPGC(file_path, datetime_start)
+        elif setup == 'FTGC':
+            chromo = chromatogram_FTGC(file_path, datetime_start)
+
+        chromatogram_dict[chromo.MinutesFromStart] = chromo.df['Value']
+        chromatogram_dict['Time'] = chromo.df['Time']
+
+    # 4. Combine and export
+    df_combined = pd.DataFrame.from_dict(chromatogram_dict)
+    df_combined.index = chromo.df['Time']
+    df_combined = df_combined.drop(columns='Time')
+    df_combined.to_csv(output_file)
+
+    print(f"[INFO] Chromatogram saved to: {output_file}")
+    return df_combined, datetime_start
 
 def baseline_correct_column(col, time_index, start, end):
     # Select the baseline window values for this column based on the provided time index.
