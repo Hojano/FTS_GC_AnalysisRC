@@ -88,6 +88,8 @@ class chromatogram_LPIRGC:
         # Determine where the timestamp starts
         if base.startswith('Detector 1_'):
             time_str = base.split('Detector 1_')[-1]
+        elif base.startswith('Detector 2_'):
+            time_str = base.split('Detector 2_')[-1]
         else:
             raise ValueError(f"Unrecognized filename format: {self.Name}")
         self.time_str = time_str  # e.g., '06-Apr-2025 16_29'
@@ -129,7 +131,7 @@ def collect_chromatogram_filesAll(experiment_path, setup: str = 'FTGC'):
         right_pattern = ''  # No AuxRight assumed for HTHPGC, adjust if needed
     elif setup == 'LPIRGC':
         fid_pattern = 'Detector 1_'
-        left_pattern = ''  # No AuxLeft for LPIRGC
+        left_pattern = 'Detector 2_'  # No AuxLeft for LPIRGC
         right_pattern = ''  # No AuxRight for LPIRGC
     else:
         raise ValueError(f"Unknown setup: {setup}. Must be 'FTGC', 'HTHPGC' or 'LPIRGC'.")
